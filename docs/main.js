@@ -65,7 +65,11 @@ function initCardImageGenerator() {
 		"action",
 		"coffer",
 		"villager",
-
+		
+		"קלף",
+		"רכישה",
+		"פעולה",
+		
 		"aktion",
         "aktionen",
         "karte",
