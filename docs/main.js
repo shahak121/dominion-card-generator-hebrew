@@ -136,6 +136,7 @@ boldLinePatternWordsSpecial = RegExp(
 
     }
     var boldLinePatternWords;
+	var boldLinePatternWordsSuffix; 
     var boldLinePatternWordsSpecial;
     rebuildBoldLinePatternWords();
 
@@ -343,7 +344,11 @@ boldLinePatternWordsSpecial = RegExp(
         x += (forceRTL ? -1 : 1) * halfWidthOfSpaces;
         word = match[4];
       } else {
-        if (word.match(boldLinePatternWords) || word.match(boldLinePatternWordsSpecial)) {
+        if (
+  word.match(boldLinePatternWords) ||
+  word.match(boldLinePatternWordsSuffix) ||   // NEW
+  word.match(boldLinePatternWordsSpecial)
+) {
           if (words.length === 1) context.font = "bold " + boldSize + "pt " + family;
           else context.font = "bold " + context.font;
         }
@@ -391,93 +396,130 @@ boldLinePatternWordsSpecial = RegExp(
         }
 
         function writeDescription(elementID, xCenter, yCenter, maxWidth, maxHeight, boldSize) {
-            rebuildBoldLinePatternWords();
-            var description = document.getElementById(elementID).value.replace(/ *\n */g, " \n ").replace(boldLinePatternWords, "$1\xa0$2$3").replace(boldLinePatternWordsSpecial, "$1$2\xa0$3$4") + " \n"; //separate newlines into their own words for easier processing
-            var words = description.split(" ");
-            var lines;
-            var widthsPerLine;
-            var heightsPerLine;
-            var overallHeight;
-            var size = 64 + 2;
-            do { //figure out the best font size, and also decide in advance how wide and tall each individual line is
-                widthsPerLine = [];
-                heightsPerLine = [];
-                overallHeight = 0;
+  rebuildBoldLinePatternWords();
 
-                size -= 2;
-                context.font = size + "pt myText";
-                var widthOfSpace = context.measureText(" ").width;
-                lines = [];
-                var line = "";
-                var progressiveWidth = 0;
-                for (var i = 0; i < words.length; ++i) {
-                    var word = words[i];
-                    var heightToAdd = 0;
-                    if (word === "\n") {
-                        lines.push(line);
-                        if (line === "") //multiple newlines in a row
-                            heightToAdd = size * 0.5;
-                        else if (line === "-") //horizontal bar
-                            heightToAdd = size * 0.75;
-                        else if ((line.match(boldLinePatternWords) || line.match(boldLinePatternWordsSpecial)) && line.indexOf(" ") < 0) { //important line
-                            heightToAdd = boldSize * 1.433;
-                            var properFont = context.font;
-                            context.font = "bold " + boldSize + "pt myText"; //resizing up to 64
-                            progressiveWidth = context.measureText(line).width; //=, not +=
-                            context.font = properFont;
-                        } else if (line.match(iconWithNumbersPatternSingle) && !line.startsWith('+')) {
-                            heightToAdd = 275; //192 * 1.433
-                            var properFont = context.font;
-                            context.font = "bold 192pt myText";
-                            progressiveWidth = getWidthOfLineWithIconsReplacedWithSpaces(line); //=, not +=
-                            context.font = properFont;
-                        } else //regular word
-                            heightToAdd = size * 1.433;
-                        line = ""; //start next line empty
-                        widthsPerLine.push(progressiveWidth);
-                        progressiveWidth = 0;
-                    } else {
-                        if (word.charAt(0) === "\xa0") {
-                            word = word.substring(1);
-                        }
-                        if (progressiveWidth + getWidthOfLineWithIconsReplacedWithSpaces(" " + word) > maxWidth) {
-                            lines.push(line + " ");
-                            line = word;
-                            heightToAdd = size * 1.433;
-                            widthsPerLine.push(progressiveWidth);
-                            progressiveWidth = getWidthOfLineWithIconsReplacedWithSpaces(word);
-                        } else {
-                            if (line.length) {
-                                line += " ";
-                                progressiveWidth += widthOfSpace;
-                            }
-                            line += word;
-                            var properFont = context.font;
-                            if (word.match(boldLinePatternWords) || word.match(boldLinePatternWordsSpecial)) //e.g. "+1 Action"
-                                context.font = "bold " + properFont;
-                            progressiveWidth += getWidthOfLineWithIconsReplacedWithSpaces(word);
-                            context.font = properFont;
-                            continue;
-                        }
-                    }
-                    overallHeight += heightToAdd;
-                    heightsPerLine.push(heightToAdd);
-                }
-                //overallHeight -= size*1.433;
-            } while (overallHeight > maxHeight && size > 16); //can only shrink so far before giving up
-            var y = yCenter - (overallHeight - size * 1.433) / 2;
-            //var barHeight = size / 80 * 10;
-            for (var i = 0; i < lines.length; ++i) {
-                var line = lines[i];
-                if (line === "-") //horizontal bar
-                    context.fillRect(xCenter / 2, y - size * 0.375 - 5, xCenter, 10);
-                else if (line.length)
-                    writeLineWithIconsReplacedWithSpaces(line, isRTL(line) ? (xCenter + widthsPerLine[i] / 2) : (xCenter - widthsPerLine[i] / 2), y, size / 96, "myText", boldSize, /*forceRTL*/ isRTL(line));
-                //else empty line with nothing to draw
-                y += heightsPerLine[i];
-            }
-            context.fillStyle = "black";
+  // Glue prefix (+1 רכישה) and suffix (רכישה +1) forms with NBSP so they stay one token
+  var description = document.getElementById(elementID).value
+    .replace(/ *\n */g, " \n ")
+    .replace(boldLinePatternWords, "$1\u00A0$2$3")          // +1 רכישה
+    .replace(boldLinePatternWordsSuffix, "$1\u00A0$2$3")    // רכישה +1
+    .replace(boldLinePatternWordsSpecial, "$1$2\u00A0$3$4")
+    + " \n"; // separate newlines into their own words for easier processing
+
+  var words = description.split(" ");
+  var lines;
+  var widthsPerLine;
+  var heightsPerLine;
+  var overallHeight;
+  var size = 64 + 2;
+
+  // Figure out best font size and precompute per-line sizes
+  do {
+    widthsPerLine = [];
+    heightsPerLine = [];
+    overallHeight = 0;
+
+    size -= 2;
+    context.font = size + "pt myText";
+    var widthOfSpace = context.measureText(" ").width;
+    lines = [];
+    var line = "";
+    var progressiveWidth = 0;
+
+    for (var i = 0; i < words.length; ++i) {
+      var word = words[i];
+      var heightToAdd = 0;
+
+      if (word === "\n") {
+        lines.push(line);
+        if (line === "")                          heightToAdd = size * 0.5;   // multiple newlines
+        else if (line === "-")                    heightToAdd = size * 0.75;  // horizontal bar
+        else if ((line.match(boldLinePatternWords) ||
+                  line.match(boldLinePatternWordsSuffix) ||
+                  line.match(boldLinePatternWordsSpecial)) &&
+                  line.indexOf(" ") < 0) {
+          // important line (single token that matches bold rule)
+          heightToAdd = boldSize * 1.433;
+          var properFont = context.font;
+          context.font = "bold " + boldSize + "pt myText";
+          progressiveWidth = context.measureText(line).width; // =, not +=
+          context.font = properFont;
+        } else if (line.match(iconWithNumbersPatternSingle) && !line.startsWith('+')) {
+          heightToAdd = 275; // 192 * 1.433
+          var properFont2 = context.font;
+          context.font = "bold 192pt myText";
+          progressiveWidth = getWidthOfLineWithIconsReplacedWithSpaces(line);
+          context.font = properFont2;
+        } else {
+          // regular word
+          heightToAdd = size * 1.433;
         }
+
+        line = ""; // start next line empty
+        widthsPerLine.push(progressiveWidth);
+        progressiveWidth = 0;
+
+      } else {
+        if (word.charAt(0) === "\u00A0") {
+          word = word.substring(1);
+        }
+
+        if (progressiveWidth + getWidthOfLineWithIconsReplacedWithSpaces(" " + word) > maxWidth) {
+          lines.push(line + " ");
+          line = word;
+          heightToAdd = size * 1.433;
+          widthsPerLine.push(progressiveWidth);
+          progressiveWidth = getWidthOfLineWithIconsReplacedWithSpaces(word);
+        } else {
+          if (line.length) {
+            line += " ";
+            progressiveWidth += widthOfSpace;
+          }
+          line += word;
+
+          var properFont3 = context.font;
+          // e.g. "+1 Action" or "Action +1" (Hebrew keyword + number)
+          if (word.match(boldLinePatternWords) ||
+              word.match(boldLinePatternWordsSuffix) ||
+              word.match(boldLinePatternWordsSpecial)) {
+            context.font = "bold " + properFont3;
+          }
+
+          progressiveWidth += getWidthOfLineWithIconsReplacedWithSpaces(word);
+          context.font = properFont3;
+          continue;
+        }
+      }
+
+      overallHeight += heightToAdd;
+      heightsPerLine.push(heightToAdd);
+    }
+  } while (overallHeight > maxHeight && size > 16); // can only shrink so far
+
+  var y = yCenter - (overallHeight - size * 1.433) / 2;
+
+  for (var i = 0; i < lines.length; ++i) {
+    var lineStr = lines[i];
+    if (lineStr === "-") {
+      // horizontal bar
+      context.fillRect(xCenter / 2, y - size * 0.375 - 5, xCenter, 10);
+    } else if (lineStr.length) {
+      writeLineWithIconsReplacedWithSpaces(
+        lineStr,
+        isRTL(lineStr) ? (xCenter + widthsPerLine[i] / 2) : (xCenter - widthsPerLine[i] / 2),
+        y,
+        size / 96,
+        "myText",
+        boldSize,
+        /*forceRTL*/ isRTL(lineStr)
+      );
+    }
+    y += heightsPerLine[i];
+  }
+
+  context.fillStyle = "black";
+}
+
 
         function writeIllustrationCredit(x, y, color, bold, size = 31) {
             var illustrationCredit = document.getElementById("credit").value;
