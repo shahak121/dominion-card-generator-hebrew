@@ -18,6 +18,22 @@ Array.prototype.remove = function () {
     return this;
 };
 
+// --- RTL helpers ---
+function isRTLText(str) {
+  // Hebrew + Arabic ranges cover Hebrew fully and most RTL (Hebrew is what you need)
+  return /[\u0590-\u08FF]/.test(str || "");
+}
+
+function withCanvasDirectionFor(text, drawFn) {
+  const prevDir   = (typeof context.direction !== "undefined") ? context.direction : "ltr";
+  const prevAlign = context.textAlign;
+  // Keep your centering logic, only set direction.
+  context.direction = isRTLText(text) ? "rtl" : "ltr";
+  drawFn();
+  context.direction = prevDir;
+  context.textAlign = prevAlign;
+}
+
 function copy(x) {
     return JSON.parse(JSON.stringify(x));
 }
@@ -371,11 +387,24 @@ function initCardImageGenerator() {
             do {
                 context.font = (size -= 2) + "pt " + family;
             } while (maxWidth && getWidthOfLineWithIconsReplacedWithSpaces(line) > maxWidth);
-            writeLineWithIconsReplacedWithSpaces(line, x - getWidthOfLineWithIconsReplacedWithSpaces(line) / 2, y, size / 90, family);
+            withCanvasDirectionFor(line, () => {
+    			writeLineWithIconsReplacedWithSpaces(
+      				line,
+      				x - getWidthOfLineWithIconsReplacedWithSpaces(line) / 2,
+      				y,
+      				size / 90,
+      				family
+		  			);
+		  		});
         }
 
         function writeDescription(elementID, xCenter, yCenter, maxWidth, maxHeight, boldSize) {
-            rebuildBoldLinePatternWords();
+            // Direction from actual description content:
+  			const sample = (document.getElementById(elementID)?.value) || "";
+  			const prevDir = (typeof context.direction !== "undefined") ? context.direction : "ltr";
+  			context.direction = isRTLText(sample) ? "rtl" : "ltr";
+
+			rebuildBoldLinePatternWords();
             var description = document.getElementById(elementID).value.replace(/ *\n */g, " \n ").replace(boldLinePatternWords, "$1\xa0$2$3").replace(boldLinePatternWordsSpecial, "$1$2\xa0$3$4") + " \n"; //separate newlines into their own words for easier processing
             var words = description.split(" ");
             var lines;
@@ -461,6 +490,7 @@ function initCardImageGenerator() {
                 y += heightsPerLine[i];
             }
             context.fillStyle = "black";
+			context.direction = prevDir;
         }
 
         function writeIllustrationCredit(x, y, color, bold, size = 31) {
