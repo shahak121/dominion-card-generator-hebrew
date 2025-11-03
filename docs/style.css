@@ -716,3 +716,21 @@ button.delete-all:focus {
 #favorites-list li:hover {
     background: var(--color-background3);
 }
+
+/* Auto RTL/LTR for user inputs */
+input[type="text"],
+input[type="url"],
+input[type="search"],
+input#type,
+input#type2,
+input#title,
+input#title2,
+input#boldkeys,
+input#credit,
+input#creator,
+input#preview,
+textarea {
+  direction: auto;
+  unicode-bidi: plaintext;   /* prevents mixed-script reordering glitches */
+  text-align: start;         /* caret starts on the correct side */
+}
