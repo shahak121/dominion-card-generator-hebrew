@@ -202,173 +202,162 @@ function initCardImageGenerator() {
         var italicSubstrings = ["[i]", "Heirloom: ", "Erbstück: ", "(This is not in the Supply.)", "Keep this until Clean-up."];
 
         function writeLineWithIconsReplacedWithSpaces(line, x, y, scale, family, boldSize, forceRTL) {
-            boldSize = boldSize || 64;
-            context.textAlign = (forceRTL ? "right" : "left");
-            if (context.direction !== undefined) { context.direction = (forceRTL ? 'rtl' : 'ltr'); }
+  boldSize = boldSize || 64;
+  context.textAlign = forceRTL ? "right" : "left";
+  if (context.direction !== undefined) context.direction = forceRTL ? "rtl" : "ltr";
 
-            if (italicSubstrings.some(substring => line.includes(substring))) {
-                context.font = "italic " + context.font;
-                if (line.includes("[i]")) {
-                    line = line.split("[i]").join("");
-                    x += boldSize * scale;
-                }
+  const italicSubstrings = ["[i]", "Heirloom: ", "Erbstück: ", "(This is not in the Supply.)", "Keep this until Clean-up."];
+  if (italicSubstrings.some(substring => line.includes(substring))) {
+    context.font = "italic " + context.font;
+    if (line.includes("[i]")) {
+      line = line.split("[i]").join("");
+      x += boldSize * scale;
+    }
+  } else {
+    context.font = context.font.replace("italic ", "");
+  }
+
+  var words = line.split(" ");
+
+  for (var i = 0; i < words.length; ++i) {
+    var word = words[i];
+    context.save();
+
+    while (word) {
+      var match = word.match(iconWithNumbersPatternSingle);
+      if (match) {
+        var familyOriginal = family;
+        family = "mySpecials";
+        var localY = y;
+        var localScale = scale;
+
+        if (words.length === 1 && !word.startsWith('+')) {
+          localY += 115 - scale * 48;
+          context.font = "bold 192pt " + family;
+          localScale = 1.6;
+          if (templateSize === 3) {
+            context.font = "bold 222pt " + family;
+            if (word.includes('$')) {
+              localScale = localScale * 2;
             } else {
-                context.font = context.font.replace("italic ", "");
+              localScale = localScale * 1.5;
             }
-
-            var words = line.split(" ");
-            var iStart = forceRTL ? words.length - 1 : 0;
-            var iEnd = forceRTL ? -1 : words.length;
-            var iStep = forceRTL ? -1 : 1;
-            for (var i = iStart; i != iEnd; i += iStep) {
-                var word = words[i];
-                context.save();
-                while (word) {
-                    var match = word.match(iconWithNumbersPatternSingle);
-                    if (match) {
-                        var familyOriginal = family;
-                        family = "mySpecials";
-                        var localY = y;
-                        var localScale = scale;
-                        if (words.length === 1 && !word.startsWith('+')) {
-                            localY += 115 - scale * 48;
-                            context.font = "bold 192pt " + family;
-                            localScale = 1.6;
-                            if (templateSize === 3) {
-                                context.font = "bold 222pt " + family;
-                                if (word.includes('$')) { // Treasure Base cards
-                                    localScale = localScale * 2;
-                                } else {
-                                    localScale = localScale * 1.5;
-                                }
-                            } else {
-                                x = x + 48 * scale;
-                            }
-                        }
-                        var halfWidthOfSpaces = context.measureText(iconReplacedWithSpaces).width / 2 + 2;
-
-                        var image = false;
-                        var iconKeys = Object.keys(icons);
-                        for (var j = 0; j < iconKeys.length; ++j) {
-                            if (iconKeys[j].replace("\\", "") == match[2]) {
-                                image = images[numberFirstIcon + j];
-                                break;
-                            }
-                        }
-
-                        context.save();
-                        if (!match[1] && (match[0].charAt(0) === '+' || match[0].charAt(0) === '-')) {
-                            match[1] = match[0].charAt(0);
-                        }
-                        if (match[1]) {
-                            if (context.font[0] !== "b")
-                                context.font = "bold " + context.font;
-                            context.fillText(match[1], x, localY);
-                            x += context.measureText(match[1]).width + 10 * localScale;
-                        }
-
-                        x += halfWidthOfSpaces;
-
-                        context.translate(x, localY);
-                        context.scale(localScale, localScale);
-                        if (image && image.height) { //exists
-                            //context.shadowColor = "#000";
-                            context.shadowBlur = 25;
-                            context.shadowOffsetX = localScale * shadowDistance;
-                            context.shadowOffsetY = localScale * shadowDistance;
-                            context.drawImage(image, image.width / -2, image.height / -2);
-                            context.shadowColor = "transparent";
-                        } //else... well, that's pretty weird, but so it goes.
-                        if (match[3]) { //text in front of image
-                            context.textAlign = "center";
-                            context.fillStyle = getIconListing(match[2])[1];
-                            let cost = match[3];
-                            let bigNumberScale = 1;
-                            let nx = localScale > 1.4 ? 0 : -5 * localScale ^ 2;
-                            let ny = localScale > 1 ? 6 * localScale : localScale > 0.7 ? 12 * localScale : localScale > 0.5 ? 24 * localScale : 48 * localScale;
-                            if (localScale > 3) {
-                                bigNumberScale = 0.8;
-                                ny -= (115 * 0.2) / 2;
-                            }
-                            if (cost.length >= 2) {
-                                // special handling for overpay and variable costs
-                                let specialCost = cost.slice(-1);
-                                let specialCostSize = 45;
-                                let syShift = 0;
-                                if (specialCost === '*') {
-                                    //specialCost = '✱';
-                                    specialCostSize = 65;
-                                    syShift = 10;
-                                    if (cost.length > 2) {
-                                        bigNumberScale = 1.5 / (cost.length - 1);
-                                    }
-                                } else if (specialCost === '+') {
-                                    specialCost = '✚';
-                                    specialCostSize = 40;
-                                    if (cost.length > 2) {
-                                        bigNumberScale = 1.5 / (cost.length - 1);
-                                    }
-                                } else {
-                                    specialCost = null;
-                                    bigNumberScale = 1.5 / cost.length;
-                                }
-                                if (specialCost != null) {
-                                    cost = cost.slice(0, -1) + " ";
-                                    context.font = "bold " + specialCostSize + "pt " + family;
-                                    let sx = localScale > 1 ? 45 / 2 * localScale : 45 * localScale;
-                                    let sy = localScale > 1 ? -20 * localScale : 12 * localScale - 35 * localScale;
-                                    if (cost.length >= 3) {
-                                        nx -= specialCostSize * 1 / 3;
-                                        sx += specialCostSize * 1 / 3;
-                                    }
-                                    sy += syShift * localScale;
-                                    context.fillText(specialCost, sx, sy);
-                                }
-                            }
-                            context.font = "bold " + 115 * bigNumberScale + "pt " + family;
-                            context.fillText(cost, nx, ny);
-                            //context.strokeText(match[3], 0, 0);
-                        }
-                        context.restore();
-                        family = familyOriginal;
-
-                        x += halfWidthOfSpaces;
-                        word = match[4];
-                    } else {
-                        if (word.match(boldLinePatternWords) || word.match(boldLinePatternWordsSpecial)) {
-                            if (words.length === 1)
-                                context.font = "bold " + boldSize + "pt " + family;
-                            else
-                                context.font = "bold " + context.font;
-                        }
-                        if (context.font.includes('bold')) {
-                            let lastChar = word.substr(word.length - 1);
-                            if ([",", ";", ".", "?", "!", ":"].includes(lastChar)) {
-                                word = word.slice(0, -1);
-                            } else {
-                                lastChar = "";
-                            }
-                            context.fillText(word, x, y);
-
-                            if (lastChar != "") {
-                                var x2 = context.measureText(word).width;
-                                context.font = context.font.replace('bold ', '');
-                                context.fillText(lastChar, x + x2, y);
-                                context.font = "bold " + context.font;
-                            }
-
-                            word = word + lastChar;
-                        } else {
-                            context.fillText(word, x, y);
-                        }
-
-                        break; //don't start this again
-                    }
-                }
-                x += (forceRTL ? -context.measureText(word + " ").width : context.measureText(word + " ").width);
-                context.restore();
-            }
+          } else {
+            x = x + 48 * scale;
+          }
         }
+
+        var halfWidthOfSpaces = context.measureText(iconReplacedWithSpaces).width / 2 + 2;
+
+        var image = false;
+        var iconKeys = Object.keys(icons);
+        for (var j = 0; j < iconKeys.length; ++j) {
+          if (iconKeys[j].replace("\\", "") == match[2]) {
+            image = images[numberFirstIcon + j];
+            break;
+          }
+        }
+
+        context.save();
+        if (!match[1] && (match[0].charAt(0) === '+' || match[0].charAt(0) === '-')) {
+          match[1] = match[0].charAt(0);
+        }
+        if (match[1]) {
+          if (context.font[0] !== "b") context.font = "bold " + context.font;
+          context.fillText(match[1], x, localY);
+          x += (forceRTL ? -1 : 1) * (context.measureText(match[1]).width + 10 * localScale);
+        }
+
+        x += (forceRTL ? -1 : 1) * halfWidthOfSpaces;
+
+        context.translate(x, localY);
+        context.scale(localScale, localScale);
+        if (image && image.height) {
+          context.shadowBlur = 25;
+          context.shadowOffsetX = localScale * shadowDistance;
+          context.shadowOffsetY = localScale * shadowDistance;
+          context.drawImage(image, image.width / -2, image.height / -2);
+          context.shadowColor = "transparent";
+        }
+        if (match[3]) { // text on icon
+          context.textAlign = "center";
+          context.fillStyle = getIconListing(match[2])[1];
+          let cost = match[3];
+          let bigNumberScale = 1;
+          let nx = localScale > 1.4 ? 0 : -5 * localScale ^ 2;
+          let ny = localScale > 1 ? 6 * localScale : localScale > 0.7 ? 12 * localScale : localScale > 0.5 ? 24 * localScale : 48 * localScale;
+          if (localScale > 3) {
+            bigNumberScale = 0.8;
+            ny -= (115 * 0.2) / 2;
+          }
+          if (cost.length >= 2) {
+            let specialCost = cost.slice(-1);
+            let specialCostSize = 45;
+            let syShift = 0;
+            if (specialCost === '*') {
+              specialCostSize = 65; syShift = 10;
+              if (cost.length > 2) bigNumberScale = 1.5 / (cost.length - 1);
+            } else if (specialCost === '+') {
+              specialCost = '✚'; specialCostSize = 40;
+              if (cost.length > 2) bigNumberScale = 1.5 / (cost.length - 1);
+            } else {
+              specialCost = null; bigNumberScale = 1.5 / cost.length;
+            }
+            if (specialCost != null) {
+              cost = cost.slice(0, -1) + " ";
+              context.font = "bold " + specialCostSize + "pt " + family;
+              let sx = localScale > 1 ? 45 / 2 * localScale : 45 * localScale;
+              let sy = localScale > 1 ? -20 * localScale : 12 * localScale - 35 * localScale;
+              if (cost.length >= 3) {
+                nx -= specialCostSize * 1 / 3;
+                sx += specialCostSize * 1 / 3;
+              }
+              sy += syShift * localScale;
+              context.fillText(specialCost, sx, sy);
+            }
+          }
+          context.font = "bold " + 115 * bigNumberScale + "pt " + family;
+          context.fillText(cost, nx, ny);
+        }
+        context.restore();
+        family = familyOriginal;
+
+        x += (forceRTL ? -1 : 1) * halfWidthOfSpaces;
+        word = match[4];
+      } else {
+        if (word.match(boldLinePatternWords) || word.match(boldLinePatternWordsSpecial)) {
+          if (words.length === 1) context.font = "bold " + boldSize + "pt " + family;
+          else context.font = "bold " + context.font;
+        }
+        if (context.font.includes('bold')) {
+          let lastChar = word.substr(word.length - 1);
+          if ([",", ";", ".", "?", "!", ":"].includes(lastChar)) {
+            word = word.slice(0, -1);
+          } else {
+            lastChar = "";
+          }
+          context.fillText(word, x, y);
+          if (lastChar != "") {
+            var x2 = context.measureText(word).width;
+            context.font = context.font.replace('bold ', '');
+            context.fillText(lastChar, x + (forceRTL ? -x2 : x2), y);
+            context.font = "bold " + context.font;
+          }
+          word = word + lastChar;
+        } else {
+          context.fillText(word, x, y);
+        }
+        break; // don't start this again
+      }
+    }
+
+    // move x by the width of the word (left in RTL, right in LTR)
+    x += (forceRTL ? -context.measureText(word + " ").width
+                   :  context.measureText(word + " ").width);
+    context.restore();
+  }
+}
+
 
         function writeSingleLine(line, x, y, maxWidth, initialSize, family) {
             family = family || "myTitle";
@@ -798,8 +787,6 @@ function initCardImageGenerator() {
             shadowDistance = -shadowDistance;
             drawHalfCard(heirloomLine, "title2", previewLine, "description2", (normalColorCurrentIndices[1] > 0) ? 1 : 0);
             shadowDistance = -shadowDistance;
-            context.textAlign = (forceRTL ? "right" : "left");
-            if (context.direction !== undefined) { context.direction = (forceRTL ? 'rtl' : 'ltr'); }
             writeIllustrationCredit(150, 2038, "white", "");
             writeCreatorCredit(1253, 2038, "white", "");
 
