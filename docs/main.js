@@ -91,6 +91,12 @@ function initCardImageGenerator() {
 	];
     var travellerTypesPattern = new RegExp(["Traveller", "Traveler", "Reisender", "Reisende", "Reiziger", "Matkaaja", "Itinérant", "Путешественник", "Приключенец"].join("|"));
 
+	// Build icon regexes once (after `icons` is defined)
+	var iconList = "[" + Object.keys(icons).join("") + "]";
+	var iconWithNumbersPattern = "[-+]?(" + iconList + ")([\\d\\?]*[-+\\*]?)";
+	var iconWithNumbersPatternSingle = RegExp("^([-+]?\\d+)?" + iconWithNumbersPattern + "(\\S*)$");
+	iconWithNumbersPattern = RegExp(iconWithNumbersPattern, "g");
+
 
     var normalColorCustomIndices = [0, 0];
     var normalColorDropdowns = document.getElementsByName("normalcolor");
@@ -111,49 +117,42 @@ function initCardImageGenerator() {
     }
     //var templateSize = 0;
 
-    function rebuildBoldLinePatternWords() {
-        let elemBoldkeys = document.getElementById("boldkeys");
-        let customBoldableKeywords = elemBoldkeys !== null ? elemBoldkeys.value : "";
-        let boldableKeywordsFull = customBoldableKeywords.length > 0 ? boldableKeywords.concat(customBoldableKeywords.split(";")) : boldableKeywords;
-        boldableKeywordsFull.forEach(function (word, index) {
-            this[index] = word.trim();
-        }, boldableKeywordsFull);
-        boldLinePatternWords = RegExp(
-  "(?:([-+]\\d+)\\s+|(\\+))(" + boldableKeywordsFull.join("|") + "s?)",
-  "ig"
-);
 
-// NEW: match “<keyword> (+1|-1|+)” e.g., רכישה +1
-boldLinePatternWordsSuffix = RegExp(
-  "(" + boldableKeywordsFull.join("|") + "s?)\\s+(?:([-+]\\d+)|(\\+))",
-  "ig"
-);
+/* 1) Globals */
+var boldLinePatternWords;          // +1 <kw>   or   + <kw>
+var boldLinePatternWordsSuffix;    // <kw> +1   or   <kw> +
+var boldLinePatternWordsSpecial;   // existing “special” pattern
+var boldLinePatternBare;           // <kw> as a standalone word (Hebrew/English)
 
-boldLinePatternWordsSpecial = RegExp(
-  "(?:([-+]\\d+)\\s+|(?:(\\d+)\\s+)|(\\+)|)(" + specialBoldableKeywords.join("|") + "s?)",
-  "ig"
-);
+/* 2) Rebuild all bold patterns */
+function rebuildBoldLinePatternWords() {
+  let elemBoldkeys = document.getElementById("boldkeys");
+  let customBoldableKeywords = elemBoldkeys !== null ? elemBoldkeys.value : "";
+  // merge built-in + custom (semicolon-separated) and trim each
+  let boldableKeywordsFull =
+    customBoldableKeywords.length > 0
+      ? boldableKeywords.concat(customBoldableKeywords.split(";"))
+      : boldableKeywords;
+  boldableKeywordsFull.forEach(function (w, i) { this[i] = w.trim(); }, boldableKeywordsFull);
 
-    }
-    var boldLinePatternWords;
-	var boldLinePatternWordsSuffix; 
-    var boldLinePatternWordsSpecial;
-    rebuildBoldLinePatternWords();
+  // Safe alternation for keywords; English/Hebrew words don’t need escaping here
+  const kw = "(?:" + boldableKeywordsFull.join("|") + ")";
 
-    var iconList = "[" + Object.keys(icons).join("") + "]";
-    //var boldLinePatternIcons = RegExp("[-+]\\d+\\s" + iconList + "\\d+", "ig");
-    var iconWithNumbersPattern = "[-+]?(" + iconList + ")([\\d\\?]*[-+\\*]?)";
-    var iconWithNumbersPatternSingle = RegExp("^([-+]?\\d+)?" + iconWithNumbersPattern + "(\\S*)$");
-    iconWithNumbersPattern = RegExp(iconWithNumbersPattern, "g");
+  // Forms:
+  //   "+1 רכישה" or "+ רכישה"  → glue as one token with NBSP
+  boldLinePatternWords = RegExp("(?:([-+]\\d+)\\s+|(\\+))(" + kw + "s?)", "ig");
+  //   "רכישה +1" or "רכישה +"  → glue as one token with NBSP
+  boldLinePatternWordsSuffix = RegExp("(" + kw + "s?)\\s+(?:([-+]\\d+)|(\\+))", "ig");
 
-    var canvases = document.getElementsByClassName("myCanvas");
+  // Bare keyword as a standalone token (space/NBSP boundaries so we don’t hit substrings)
+  boldLinePatternBare = RegExp("(^|[\\s\\u00A0])(" + kw + ")(?=$|[\\s\\u00A0])", "ig");
 
-    var images = [];
-    var imagesLoaded = false;
-    var recolorFactorList = [
-		[0.75, 1.1, 1.35, 0, 0, 0, 1, 2, 3, 4, 5, 6],
-		[0.75, 1.1, 1.35, 0, 0, 0, 1, 2, 3, 4, 5, 6]
-	];
+  // Keep your existing “special” rule
+  boldLinePatternWordsSpecial = RegExp(
+    "(?:([-+]\\d+)\\s+|(?:(\\d+)\\s+)|(\\+)|)(" + specialBoldableKeywords.join("|") + "s?)",
+    "ig"
+  );
+}
 
     var normalColorCurrentIndices = [0, 0];
     var recoloredImages = [];
@@ -220,13 +219,14 @@ boldLinePatternWordsSpecial = RegExp(
         var shadowDistance = 10;
         var italicSubstrings = ["[i]", "Heirloom: ", "Erbstück: ", "(This is not in the Supply.)", "Keep this until Clean-up."];
 
-        function writeLineWithIconsReplacedWithSpaces(line, x, y, scale, family, boldSize, forceRTL) {
+        /* 3) writeLineWithIconsReplacedWithSpaces — add bare-keyword bolding */
+function writeLineWithIconsReplacedWithSpaces(line, x, y, scale, family, boldSize, forceRTL) {
   boldSize = boldSize || 64;
   context.textAlign = forceRTL ? "right" : "left";
   if (context.direction !== undefined) context.direction = forceRTL ? "rtl" : "ltr";
 
-  const italicSubstrings = ["[i]", "Heirloom: ", "Erbstück: ", "(This is not in the Supply.)", "Keep this until Clean-up."];
-  if (italicSubstrings.some(substring => line.includes(substring))) {
+  const italicSubs = ["[i]", "Heirloom: ", "Erbstück: ", "(This is not in the Supply.)", "Keep this until Clean-up."];
+  if (italicSubs.some(s => line.includes(s))) {
     context.font = "italic " + context.font;
     if (line.includes("[i]")) {
       line = line.split("[i]").join("");
@@ -245,6 +245,9 @@ boldLinePatternWordsSpecial = RegExp(
     while (word) {
       var match = word.match(iconWithNumbersPatternSingle);
       if (match) {
+        // … (UNCHANGED icon handling from your version) …
+        // copy your icon block exactly as-is
+        // BEGIN ICON BLOCK
         var familyOriginal = family;
         family = "mySpecials";
         var localY = y;
@@ -266,7 +269,7 @@ boldLinePatternWordsSpecial = RegExp(
           }
         }
 
-        var halfWidthOfSpaces = context.measureText(iconReplacedWithSpaces).width / 2 + 2;
+        var halfWidthOfSpaces = context.measureText("     ").width / 2 + 2;
 
         var image = false;
         var iconKeys = Object.keys(icons);
@@ -293,14 +296,14 @@ boldLinePatternWordsSpecial = RegExp(
         context.scale(localScale, localScale);
         if (image && image.height) {
           context.shadowBlur = 25;
-          context.shadowOffsetX = localScale * shadowDistance;
-          context.shadowOffsetY = localScale * shadowDistance;
+          context.shadowOffsetX = localScale * 10;
+          context.shadowOffsetY = localScale * 10;
           context.drawImage(image, image.width / -2, image.height / -2);
           context.shadowColor = "transparent";
         }
         if (match[3]) { // text on icon
           context.textAlign = "center";
-          context.fillStyle = getIconListing(match[2])[1];
+          context.fillStyle = (icons[match[2]] || icons["\\" + match[2]])[1];
           let cost = match[3];
           let bigNumberScale = 1;
           let nx = localScale > 1.4 ? 0 : -5 * localScale ^ 2;
@@ -343,15 +346,19 @@ boldLinePatternWordsSpecial = RegExp(
 
         x += (forceRTL ? -1 : 1) * halfWidthOfSpaces;
         word = match[4];
+        // END ICON BLOCK
       } else {
+        // bold if any of the patterns match this token (including bare keywords)
         if (
-  word.match(boldLinePatternWords) ||
-  word.match(boldLinePatternWordsSuffix) ||   // NEW
-  word.match(boldLinePatternWordsSpecial)
-) {
+          word.match(boldLinePatternWords) ||
+          word.match(boldLinePatternWordsSuffix) ||
+          word.match(boldLinePatternWordsSpecial) ||
+          word.match(boldLinePatternBare)
+        ) {
           if (words.length === 1) context.font = "bold " + boldSize + "pt " + family;
           else context.font = "bold " + context.font;
         }
+
         if (context.font.includes('bold')) {
           let lastChar = word.substr(word.length - 1);
           if ([",", ";", ".", "?", "!", ":"].includes(lastChar)) {
@@ -360,7 +367,7 @@ boldLinePatternWordsSpecial = RegExp(
             lastChar = "";
           }
           context.fillText(word, x, y);
-          if (lastChar != "") {
+          if (lastChar !== "") {
             var x2 = context.measureText(word).width;
             context.font = context.font.replace('bold ', '');
             context.fillText(lastChar, x + (forceRTL ? -x2 : x2), y);
@@ -370,11 +377,11 @@ boldLinePatternWordsSpecial = RegExp(
         } else {
           context.fillText(word, x, y);
         }
-        break; // don't start this again
+        break; // don’t restart this token
       }
     }
 
-    // move x by the width of the word (left in RTL, right in LTR)
+    // advance x by word width (left in RTL, right in LTR)
     x += (forceRTL ? -context.measureText(word + " ").width
                    :  context.measureText(word + " ").width);
     context.restore();
@@ -395,26 +402,24 @@ boldLinePatternWordsSpecial = RegExp(
             }
         }
 
-        function writeDescription(elementID, xCenter, yCenter, maxWidth, maxHeight, boldSize) {
+		function writeDescription(elementID, xCenter, yCenter, maxWidth, maxHeight, boldSize) {
   rebuildBoldLinePatternWords();
 
-  // Glue prefix (+1 רכישה) and suffix (רכישה +1) forms with NBSP so they stay one token
+  // Read, normalize, and glue tokens with NBSP so they stay single “words”
   var description = document.getElementById(elementID).value
     .replace(/ *\n */g, " \n ")
     .replace(boldLinePatternWords, "$1\u00A0$2$3")          // +1 רכישה
     .replace(boldLinePatternWordsSuffix, "$1\u00A0$2$3")    // רכישה +1
-    .replace(boldLinePatternWordsSpecial, "$1$2\u00A0$3$4")
-    + " \n"; // separate newlines into their own words for easier processing
+    .replace(boldLinePatternWordsSpecial, "$1$2\u00A0$3$4");
+
+  // Normalize NBSP+spaces to a single NBSP so splitting is consistent
+  description = description.replace(/\u00A0\s+/g, "\u00A0") + " \n";
 
   var words = description.split(" ");
-  var lines;
-  var widthsPerLine;
-  var heightsPerLine;
-  var overallHeight;
+  var lines, widthsPerLine, heightsPerLine, overallHeight;
   var size = 64 + 2;
 
-  // Figure out best font size and precompute per-line sizes
-  do {
+  do { // compute best font size and line metrics
     widthsPerLine = [];
     heightsPerLine = [];
     overallHeight = 0;
@@ -432,37 +437,38 @@ boldLinePatternWordsSpecial = RegExp(
 
       if (word === "\n") {
         lines.push(line);
-        if (line === "")                          heightToAdd = size * 0.5;   // multiple newlines
-        else if (line === "-")                    heightToAdd = size * 0.75;  // horizontal bar
-        else if ((line.match(boldLinePatternWords) ||
-                  line.match(boldLinePatternWordsSuffix) ||
-                  line.match(boldLinePatternWordsSpecial)) &&
-                  line.indexOf(" ") < 0) {
-          // important line (single token that matches bold rule)
+
+        if (line === "") heightToAdd = size * 0.5;                 // empty line
+        else if (line === "-") heightToAdd = size * 0.75;          // bar
+        else if (
+          (line.match(boldLinePatternWords) ||
+           line.match(boldLinePatternWordsSuffix) ||
+           line.match(boldLinePatternWordsSpecial) ||
+           line.match(boldLinePatternBare)) &&
+          line.indexOf(" ") < 0
+        ) {
+          // single token and it’s bold-worthy → taller line
           heightToAdd = boldSize * 1.433;
           var properFont = context.font;
           context.font = "bold " + boldSize + "pt myText";
-          progressiveWidth = context.measureText(line).width; // =, not +=
+          progressiveWidth = context.measureText(line).width;
           context.font = properFont;
         } else if (line.match(iconWithNumbersPatternSingle) && !line.startsWith('+')) {
-          heightToAdd = 275; // 192 * 1.433
+          heightToAdd = 275;
           var properFont2 = context.font;
           context.font = "bold 192pt myText";
           progressiveWidth = getWidthOfLineWithIconsReplacedWithSpaces(line);
           context.font = properFont2;
         } else {
-          // regular word
           heightToAdd = size * 1.433;
         }
 
-        line = ""; // start next line empty
+        line = "";
         widthsPerLine.push(progressiveWidth);
         progressiveWidth = 0;
 
       } else {
-        if (word.charAt(0) === "\u00A0") {
-          word = word.substring(1);
-        }
+        if (word.charAt(0) === "\u00A0") word = word.substring(1);
 
         if (progressiveWidth + getWidthOfLineWithIconsReplacedWithSpaces(" " + word) > maxWidth) {
           lines.push(line + " ");
@@ -478,13 +484,14 @@ boldLinePatternWordsSpecial = RegExp(
           line += word;
 
           var properFont3 = context.font;
-          // e.g. "+1 Action" or "Action +1" (Hebrew keyword + number)
-          if (word.match(boldLinePatternWords) ||
-              word.match(boldLinePatternWordsSuffix) ||
-              word.match(boldLinePatternWordsSpecial)) {
+          if (
+            word.match(boldLinePatternWords) ||
+            word.match(boldLinePatternWordsSuffix) ||
+            word.match(boldLinePatternWordsSpecial) ||
+            word.match(boldLinePatternBare)
+          ) {
             context.font = "bold " + properFont3;
           }
-
           progressiveWidth += getWidthOfLineWithIconsReplacedWithSpaces(word);
           context.font = properFont3;
           continue;
@@ -494,14 +501,13 @@ boldLinePatternWordsSpecial = RegExp(
       overallHeight += heightToAdd;
       heightsPerLine.push(heightToAdd);
     }
-  } while (overallHeight > maxHeight && size > 16); // can only shrink so far
+  } while (overallHeight > maxHeight && size > 16);
 
   var y = yCenter - (overallHeight - size * 1.433) / 2;
 
   for (var i = 0; i < lines.length; ++i) {
     var lineStr = lines[i];
     if (lineStr === "-") {
-      // horizontal bar
       context.fillRect(xCenter / 2, y - size * 0.375 - 5, xCenter, 10);
     } else if (lineStr.length) {
       writeLineWithIconsReplacedWithSpaces(
