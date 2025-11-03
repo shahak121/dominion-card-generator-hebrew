@@ -118,8 +118,22 @@ function initCardImageGenerator() {
         boldableKeywordsFull.forEach(function (word, index) {
             this[index] = word.trim();
         }, boldableKeywordsFull);
-        boldLinePatternWords = RegExp("(?:([-+]\\d+)\\s+|(\\+))(" + boldableKeywordsFull.join("|") + "s?)", "ig");
-        boldLinePatternWordsSpecial = RegExp("(?:([-+]\\d+)\\s+|(?:(\\d+)\\s+)|(\\+)|)(" + specialBoldableKeywords.join("|") + "s?)", "ig");
+        boldLinePatternWords = RegExp(
+  "(?:([-+]\\d+)\\s+|(\\+))(" + boldableKeywordsFull.join("|") + "s?)",
+  "ig"
+);
+
+// NEW: match “<keyword> (+1|-1|+)” e.g., רכישה +1
+boldLinePatternWordsSuffix = RegExp(
+  "(" + boldableKeywordsFull.join("|") + "s?)\\s+(?:([-+]\\d+)|(\\+))",
+  "ig"
+);
+
+boldLinePatternWordsSpecial = RegExp(
+  "(?:([-+]\\d+)\\s+|(?:(\\d+)\\s+)|(\\+)|)(" + specialBoldableKeywords.join("|") + "s?)",
+  "ig"
+);
+
     }
     var boldLinePatternWords;
     var boldLinePatternWordsSpecial;
