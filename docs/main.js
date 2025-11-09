@@ -154,6 +154,15 @@ function rebuildBoldLinePatternWords() {
   );
 }
 
+
+	var canvases = document.getElementsByClassName("myCanvas");
+
+    var images = [];
+    var imagesLoaded = false;
+    var recolorFactorList = [
+		[0.75, 1.1, 1.35, 0, 0, 0, 1, 2, 3, 4, 5, 6],
+		[0.75, 1.1, 1.35, 0, 0, 0, 1, 2, 3, 4, 5, 6]
+	];
     var normalColorCurrentIndices = [0, 0];
     var recoloredImages = [];
 
