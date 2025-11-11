@@ -416,7 +416,7 @@ function writeLineWithIconsReplacedWithSpaces(line, x, y, scale, family, boldSiz
                 context.font = (size -= 2) + "pt " + family;
             } while (maxWidth && getWidthOfLineWithIconsReplacedWithSpaces(line) > maxWidth);
             if (isRTL(line)) {
-                (line, x + getWidthOfLineWithIconsReplacedWithSpaces(line) / 2, y, size / 90, family, undefined, /*forceRTL*/ true);
+                writeLineWithIconsReplacedWithSpaces(line, x + getWidthOfLineWithIconsReplacedWithSpaces(line) / 2, y, size / 90, family, undefined, /*forceRTL*/ true);
             } else {
                 writeLineWithIconsReplacedWithSpaces(line, x - getWidthOfLineWithIconsReplacedWithSpaces(line) / 2, y, size / 90, family, undefined, /*forceRTL*/ false);
             }
