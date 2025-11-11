@@ -96,7 +96,7 @@ let alreadyNeededToDetermineCustomAccentColors = false;
 
 // Element References (will be set in init)
 let normalColorDropdowns = [];
-
+let numberFirstIcon = 0; // <-- ADD THIS LINE
 
 // --- CHAPTER 2: UTILITY FUNCTIONS ---
 
@@ -1534,7 +1534,7 @@ function initCardImageGenerator() {
         recoloredImages.push(false);
     
     var legend = document.getElementById("legend");
-    var numberFirstIcon = sources.length;
+    numberFirstIcon = sources.length;
     for (let key in icons) { // Use 'let' for block scope
         var li = document.createElement("li");
         li.textContent = ": " + icons[key][0];
