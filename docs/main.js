@@ -941,10 +941,7 @@ function writeLineWithIconsReplacedWithSpaces(context, line, x, y, scale, family
 
   var words = line.split(" ");
 
-  // --- FIX #1: This handles RTL word order ---
-  if (forceRTL) {
-    words.reverse();
-  }
+
 
   for (var i = 0; i < words.length; ++i) {
     var word = words[i];
