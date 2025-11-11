@@ -920,179 +920,179 @@ function getIconListing(icon) {
  * Draws a single line of text, handling icons, bolding, and RTL.
  * This is the function we fixed.
  */
+/**
+ * Draws a single line of text, handling icons, bolding, and RTL.
+ */
 function writeLineWithIconsReplacedWithSpaces(context, line, x, y, scale, family, boldSize, forceRTL) {
-    boldSize = boldSize || 64;
-    context.textAlign = forceRTL ? "right" : "left";
-    if (context.direction !== undefined) context.direction = forceRTL ? "rtl" : "ltr";
+  boldSize = boldSize || 64;
+  context.textAlign = forceRTL ? "right" : "left";
+  if (context.direction !== undefined) context.direction = forceRTL ? "rtl" : "ltr";
 
-    const italicSubs = ["[i]", "Heirloom: ", "Erbstück: ", "(This is not in the Supply.)", "Keep this until Clean-up."];
-    if (italicSubs.some(s => line.includes(s))) {
-        context.font = "italic " + context.font;
-        if (line.includes("[i]")) {
-            line = line.split("[i]").join("");
-            x += boldSize * scale;
-        }
-    } else {
-        context.font = context.font.replace("italic ", "");
+  const italicSubs = ["[i]", "Heirloom: ", "Erbstück: ", "(This is not in the Supply.)", "Keep this until Clean-up."];
+  if (italicSubs.some(s => line.includes(s))) {
+    context.font = "italic " + context.font;
+    if (line.includes("[i]")) {
+      line = line.split("[i]").join("");
+      x += boldSize * scale;
     }
+  } else {
+    context.font = context.font.replace("italic ", "");
+  }
 
-    var words = line.split(" ");
+  var words = line.split(" ");
 
-    // --- START OF RTL FIX ---
-    // Check if the line has icons.
-    if (line.match(iconWithNumbersPatternRegex)) {
-        // If YES, use the complex word-by-word method.
-        // We MUST reverse the words array for RTL to draw in the correct order.
-        if (forceRTL) { words.reverse(); }
+  // --- FIX #1: This handles RTL word order ---
+  if (forceRTL) {
+    words.reverse();
+  }
 
-        for (var i = 0; i < words.length; ++i) {
-            var word = words[i];
-            context.save();
-            while (word) {
-                var match = word.match(iconWithNumbersPatternSingle);
-                if (match) {
-                    // --- Icon Drawing Logic ---
-                    var familyOriginal = family;
-                    family = "mySpecials";
-                    var localY = y;
-                    var localScale = scale;
+  for (var i = 0; i < words.length; ++i) {
+    var word = words[i];
+    context.save();
 
-                    if (words.length === 1 && !word.startsWith('+')) {
-                        localY += 115 - scale * 48;
-                        context.font = "bold 192pt " + family;
-                        localScale = 1.6;
-                        if (templateSize === 3) {
-                            context.font = "bold 222pt " + family;
-                            if (word.includes('$')) {
-                                localScale = localScale * 2;
-                            } else {
-                                localScale = localScale * 1.5;
-                            }
-                        } else {
-                            x = x + 48 * scale;
-                        }
-                    }
+    while (word) {
+      var match = word.match(iconWithNumbersPatternSingle);
+      if (match) {
+        // --- Icon Drawing Logic (This part is correct) ---
+        var familyOriginal = family;
+        family = "mySpecials";
+        var localY = y;
+        var localScale = scale;
 
-                    var halfWidthOfSpaces = context.measureText("     ").width / 2 + 2;
-                    var image = false;
-                    var iconKeys = Object.keys(icons);
-                    for (var j = 0; j < iconKeys.length; ++j) {
-                        if (iconKeys[j].replace("\\", "") == match[2]) {
-                            image = images[numberFirstIcon + j];
-                            break;
-                        }
-                    }
+        if (words.length === 1 && !word.startsWith('+')) {
+          localY += 115 - scale * 48;
+          context.font = "bold 192pt " + family;
+          localScale = 1.6;
+          if (templateSize === 3) {
+            context.font = "bold 222pt " + family;
+            if (word.includes('$')) {
+              localScale = localScale * 2;
+            } else {
+              localScale = localScale * 1.5;
+            }
+          } else {
+            x = x + 48 * scale;
+          }
+        }
 
-                    context.save();
-                    if (!match[1] && (match[0].charAt(0) === '+' || match[0].charAt(0) === '-')) {
-                        match[1] = match[0].charAt(0);
-                    }
-                    if (match[1]) {
-                        if (context.font[0] !== "b") context.font = "bold " + context.font;
-                        context.fillText(match[1], x, localY);
-                        x += (forceRTL ? -1 : 1) * (context.measureText(match[1]).width + 10 * localScale);
-                    }
+        var halfWidthOfSpaces = context.measureText("     ").width / 2 + 2;
+        var image = false;
+        var iconKeys = Object.keys(icons);
+        for (var j = 0; j < iconKeys.length; ++j) {
+          if (iconKeys[j].replace("\\", "") == match[2]) {
+            image = images[numberFirstIcon + j];
+            break;
+          }
+        }
 
-                    x += (forceRTL ? -1 : 1) * halfWidthOfSpaces;
-                    context.translate(x, localY);
-                    context.scale(localScale, localScale);
-                    
-                    if (image && image.height) {
-                        context.shadowBlur = 25;
-                        context.shadowOffsetX = localScale * shadowDistance;
-                        context.shadowOffsetY = localScale * shadowDistance;
-                        context.drawImage(image, image.width / -2, image.height / -2);
-                        context.shadowColor = "transparent";
-                    }
-                    if (match[3]) { // text on icon
-                        context.textAlign = "center";
-                        context.fillStyle = getIconListing(match[2])[1];
-                        let cost = match[3];
-                        let bigNumberScale = 1;
-                        let nx = localScale > 1.4 ? 0 : -5 * localScale ^ 2;
-                        let ny = localScale > 1 ? 6 * localScale : localScale > 0.7 ? 12 * localScale : localScale > 0.5 ? 24 * localScale : 48 * localScale;
-                        if (localScale > 3) {
-                            bigNumberScale = 0.8;
-                            ny -= (115 * 0.2) / 2;
-                        }
-                        if (cost.length >= 2) {
-                            let specialCost = cost.slice(-1);
-                            let specialCostSize = 45;
-                            let syShift = 0;
-                            if (specialCost === '*') {
-                                specialCostSize = 65; syShift = 10;
-                                if (cost.length > 2) bigNumberScale = 1.5 / (cost.length - 1);
-                            } else if (specialCost === '+') {
-                                specialCost = '✚'; specialCostSize = 40;
-                                if (cost.length > 2) bigNumberScale = 1.5 / (cost.length - 1);
-                            } else {
-                                specialCost = null; bigNumberScale = 1.5 / cost.length;
-                            }
-                            if (specialCost != null) {
-                                cost = cost.slice(0, -1) + " ";
-                                context.font = "bold " + specialCostSize + "pt " + family;
-                                let sx = localScale > 1 ? 45 / 2 * localScale : 45 * localScale;
-                                let sy = localScale > 1 ? -20 * localScale : 12 * localScale - 35 * localScale;
-                                if (cost.length >= 3) {
-                                    nx -= specialCostSize * 1 / 3;
-                                    sx += specialCostSize * 1 / 3;
-                                }
-                                sy += syShift * localScale;
-                                context.fillText(specialCost, sx, sy);
-                            }
-                        }
-                        context.font = "bold " + 115 * bigNumberScale + "pt " + family;
-                        context.fillText(cost, nx, ny);
-                    }
-                    context.restore();
-                    family = familyOriginal;
-                    x += (forceRTL ? -1 : 1) * halfWidthOfSpaces;
-                    word = match[4];
-                    // --- End Icon Drawing ---
+        context.save();
+        if (!match[1] && (match[0].charAt(0) === '+' || match[0].charAt(0) === '-')) {
+          match[1] = match[0].charAt(0);
+        }
+        if (match[1]) {
+          if (context.font[0] !== "b") context.font = "bold " + context.font;
+          context.fillText(match[1], x, localY);
+          x += (forceRTL ? -1 : 1) * (context.measureText(match[1]).width + 10 * localScale);
+        }
+
+        x += (forceRTL ? -1 : 1) * halfWidthOfSpaces;
+        context.translate(x, localY);
+        context.scale(localScale, localScale);
+        
+        if (image && image.height) {
+            context.shadowBlur = 25;
+            context.shadowOffsetX = localScale * shadowDistance;
+            context.shadowOffsetY = localScale * shadowDistance;
+            context.drawImage(image, image.width / -2, image.height / -2);
+            context.shadowColor = "transparent";
+        }
+        if (match[3]) { // text on icon
+            context.textAlign = "center";
+            context.fillStyle = getIconListing(match[2])[1];
+            let cost = match[3];
+            let bigNumberScale = 1;
+            let nx = localScale > 1.4 ? 0 : -5 * localScale ^ 2;
+            let ny = localScale > 1 ? 6 * localScale : localScale > 0.7 ? 12 * localScale : localScale > 0.5 ? 24 * localScale : 48 * localScale;
+            if (localScale > 3) {
+                bigNumberScale = 0.8;
+                ny -= (115 * 0.2) / 2;
+            }
+            if (cost.length >= 2) {
+                let specialCost = cost.slice(-1);
+                let specialCostSize = 45;
+                let syShift = 0;
+                if (specialCost === '*') {
+                    specialCostSize = 65; syShift = 10;
+                    if (cost.length > 2) bigNumberScale = 1.5 / (cost.length - 1);
+                } else if (specialCost === '+') {
+                    specialCost = '✚'; specialCostSize = 40;
+                    if (cost.length > 2) bigNumberScale = 1.5 / (cost.length - 1);
                 } else {
-                    // --- Bold Drawing Logic ---
-                    if (
-                        word.match(boldLinePatternWords) ||
-                        word.match(boldLinePatternWordsSuffix) ||
-                        word.match(boldLinePatternWordsSpecial) ||
-                        word.match(boldLinePatternBare)
-                    ) {
-                        if (words.length === 1) context.font = "bold " + boldSize + "pt " + family;
-                        else context.font = "bold " + context.font;
+                    specialCost = null; bigNumberScale = 1.5 / cost.length;
+                }
+                if (specialCost != null) {
+                    cost = cost.slice(0, -1) + " ";
+                    context.font = "bold " + specialCostSize + "pt " + family;
+                    let sx = localScale > 1 ? 45 / 2 * localScale : 45 * localScale;
+                    let sy = localScale > 1 ? -20 * localScale : 12 * localScale - 35 * localScale;
+                    if (cost.length >= 3) {
+                        nx -= specialCostSize * 1 / 3;
+                        sx += specialCostSize * 1 / 3;
                     }
-
-                    if (context.font.includes('bold')) {
-                        let lastChar = word.substr(word.length - 1);
-                        if ([",", ";", ".", "?", "!", ":"].includes(lastChar)) {
-                            word = word.slice(0, -1);
-                        } else {
-                            lastChar = "";
-                        }
-                        context.fillText(word, x, y);
-                        if (lastChar !== "") {
-                            var x2 = context.measureText(word).width;
-                            context.font = context.font.replace('bold ', '');
-                            // --- This line had a typo, corrected 'forceRT' to 'forceRTL' ---
-                            context.fillText(lastChar, x + (forceRTL ? -x2 : x2), y);
-                            context.font = "bold " + context.font;
-                        }
-                        word = word + lastChar;
-                    } else {
-                        context.fillText(word, x, y);
-                    }
-                    break;
+                    sy += syShift * localScale;
+                    context.fillText(specialCost, sx, sy);
                 }
             }
-            x += (forceRTL ? -context.measureText(word + " ").width :
-                context.measureText(word + " ").width);
-            context.restore();
+            context.font = "bold " + 115 * bigNumberScale + "pt " + family;
+            context.fillText(cost, nx, ny);
         }
-    } else {
-        // If NO icons, use the simple path.
-        // Let the browser's native RTL engine handle word order.
-        context.fillText(line, x, y);
+        context.restore();
+        family = familyOriginal;
+        x += (forceRTL ? -1 : 1) * halfWidthOfSpaces;
+        word = match[4];
+        // --- End Icon Drawing ---
+      } else {
+        // --- FIX #2: This is the bolding logic ---
+        // It now correctly checks for all 4 patterns
+        if (
+          word.match(boldLinePatternWords) ||
+          word.match(boldLinePatternWordsSuffix) ||
+          word.match(boldLinePatternWordsSpecial) ||
+          word.match(boldLinePatternBare) 
+        ) {
+          // This applies the strong bold font
+          if (words.length === 1) context.font = "bold " + boldSize + "pt " + family;
+          else context.font = "bold " + context.font;
+        }
+
+        // This draws the word
+        if (context.font.includes('bold')) {
+          let lastChar = word.substr(word.length - 1);
+          if ([",", ";", ".", "?", "!", ":"].includes(lastChar)) {
+            word = word.slice(0, -1);
+          } else {
+            lastChar = "";
+          }
+          context.fillText(word, x, y);
+          if (lastChar !== "") {
+            var x2 = context.measureText(word).width;
+            context.font = context.font.replace('bold ', '');
+            context.fillText(lastChar, x + (forceRTL ? -x2 : x2), y);
+            context.font = "bold " + context.font;
+          }
+          word = word + lastChar;
+        } else {
+          context.fillText(word, x, y);
+        }
+        break; 
+      }
     }
-    // --- END OF RTL FIX ---
+
+    // Advance x for the next word
+    var wordWidth = context.measureText(word + " ").width;
+    x += (forceRTL ? -wordWidth : wordWidth);
+    context.restore();
+  }
 }
 
 /**
